@@ -3,6 +3,7 @@ import type { StreakInfo } from './rings';
 export * from './dates';
 export * from './rings';
 export * from './progress';
+export * from './nutrition';
 
 export type HabitKind = 'nutrition' | 'workout' | 'sleep' | 'custom';
 export type CheckinStatus = 'done' | 'skipped';
