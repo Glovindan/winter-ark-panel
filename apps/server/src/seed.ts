@@ -6,6 +6,7 @@
  *   npm run seed -w @ark/server -- --clean
  */
 import { addDays, isDateStr } from '@ark/shared';
+import { refreshAchievements } from './achievements';
 import { loadConfig } from './config';
 import { openDb } from './db';
 import { getArc } from './today';
@@ -60,4 +61,18 @@ db.transaction(() => {
   });
 })();
 
-console.log(`готово: ${NAMES.length} участников, отметки с ${arc.startDate} по ${today}`);
+// несколько участников «болели»: пауза на пару дней в прошлом (напрямую, мимо окна правки)
+const sick = db.prepare('INSERT INTO pause (user_id, start_date, end_date) SELECT id, ?, ? FROM user WHERE tg_id = ?');
+db.prepare('DELETE FROM pause WHERE user_id IN (SELECT id FROM user WHERE tg_id < 0)').run();
+[[-2, 10], [-5, 20], [-9, 5]].forEach(([tg, daysAgo], i) => {
+  const end = addDays(today, -daysAgo!);
+  sick.run(addDays(end, -(2 + i)), end, tg);
+});
+
+// ачивки пересчитываем так же, как это делает сервер (без уведомлений)
+let unlocked = 0;
+for (const { id } of db.prepare('SELECT id FROM user WHERE tg_id < 0').all() as { id: number }[]) {
+  unlocked += refreshAchievements(db, config, id).length;
+}
+
+console.log(`готово: ${NAMES.length} участников, отметки с ${arc.startDate} по ${today}, ачивок открыто: ${unlocked}`);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { overall, RING_KINDS, weekStart, type RingKind, type UserDetailResponse } from '@ark/shared';
+import { achievementByCode, overall, RING_KINDS, weekStart, type RingKind, type UserDetailResponse } from '@ark/shared';
 import { getUserDays } from './api';
 import { Avatar } from './Avatar';
 import { Ring } from './Ring';
@@ -28,8 +28,10 @@ export function UserDetail({ userId, onBack }: { userId: number; onBack: () => v
   const fixed = data.habits.filter((h) => h.kind !== 'custom');
   const custom = data.habits.filter((h) => h.kind === 'custom');
   const weekByStart = new Map(data.weeks.map((w) => [w.weekStart, w]));
+  const paused = new Set(data.paused);
 
   const mark = (done: boolean, date: string, kind: string) => {
+    if (paused.has(date)) return <span className="sub">⏸</span>;
     if (done) return <span className="ok">✓</span>;
     if (date >= data.today) return <span className="sub">·</span>; // день ещё открыт
     return kind === 'workout' ? <span className="sub">·</span> : <span className="bad">✗</span>;
@@ -50,6 +52,18 @@ export function UserDetail({ userId, onBack }: { userId: number; onBack: () => v
           </p>
         </div>
       </div>
+
+      <p className="streak">
+        🔥 Серия: <b>{data.streak.current}</b> дн. · лучшая {data.streak.best} · заморозок: {data.streak.freezesLeft}
+      </p>
+      {data.achievements.length > 0 && (
+        <div className="chips pad">
+          {data.achievements.map((u) => {
+            const a = achievementByCode(u.code);
+            return a ? <span key={u.code} className="chip" title={a.description}>{a.icon} {a.title}</span> : null;
+          })}
+        </div>
+      )}
 
       <p className="sec">Итоги по пунктам</p>
       {RING_KINDS.map((k) => {
@@ -81,7 +95,7 @@ export function UserDetail({ userId, onBack }: { userId: number; onBack: () => v
               </p>
             )}
             <div className="day">
-              <p className="ttl">{dayLabel(day.date)}</p>
+              <p className="ttl">{dayLabel(day.date)}{paused.has(day.date) && <span className="sub"> · ⏸ пауза</span>}</p>
               <div className="chips">
                 {fixed.map((h) => (
                   <span key={h.id} className="chip">{TITLES[h.kind as RingKind].replace('Тренировки', 'Тренировка')} {mark(done.has(h.id), day.date, h.kind)}</span>

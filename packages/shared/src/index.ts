@@ -1,5 +1,8 @@
+import type { StreakInfo } from './rings';
+
 export * from './dates';
 export * from './rings';
+export * from './progress';
 
 export type HabitKind = 'nutrition' | 'workout' | 'sleep' | 'custom';
 export type CheckinStatus = 'done' | 'skipped';
@@ -58,6 +61,13 @@ export interface TodayResponse {
   /** Тренировки за неделю (пн–вс), в которую попадает date */
   workout: { done: number; target: number };
   norms: { kcal: number | null; sleepHours: number };
+  streak: StreakInfo;
+  /** день date на паузе: отметки заблокированы */
+  paused: boolean;
+  /** последний день паузы, в которую попадает date */
+  pauseEndsOn: string | null;
+  /** сколько дней паузы ещё можно взять за арку */
+  pauseDaysLeft: number;
 }
 
 export const MAX_CUSTOM_HABITS = 10;

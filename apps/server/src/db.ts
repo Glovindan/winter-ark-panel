@@ -61,6 +61,24 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (user_id, date)
   );
   `,
+  `
+  CREATE TABLE pause (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CHECK (start_date <= end_date)
+  );
+  CREATE INDEX pause_user ON pause(user_id);
+
+  CREATE TABLE achievement (
+    user_id INTEGER NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    unlocked_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, code)
+  );
+  `,
 ];
 
 export function openDb(path: string): Db {

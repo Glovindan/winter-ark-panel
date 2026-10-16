@@ -23,21 +23,29 @@ export function buildPoll(config: Config, today: TodayResponse): Poll {
   if (config.webAppUrl) markup.row().webApp('Открыть панель', config.webAppUrl);
 
   const { done, target } = today.workout;
+  const { current, freezesLeft } = today.streak;
   const text = [
     `Опрос за ${dateLabel(today.date)}`,
     'Нажимай на пункты, которые выполнил.',
     `Тренировок за неделю: ${Math.min(done, target)} из ${target}`,
-  ].join('\n');
+    current > 0 ? `🔥 Серия: ${current} дн. (заморозок: ${freezesLeft})` : '',
+  ].filter(Boolean).join('\n');
   return { text, markup };
 }
 
-/** Опрос на сегодняшнюю дату для пользователя, зарегистрированного по tg_id. */
-export function pollFor(db: Db, config: Config, tgId: number): Poll | null {
+/** Сегодняшний день участника, зарегистрированного по tg_id. */
+export function todayOf(db: Db, config: Config, tgId: number): TodayResponse | null {
   const user = getUserByTgId(db, tgId, config.adminTgId);
   if (!user) return null;
   const arc = getArc(db);
   const today = currentDate(config, arc);
-  return buildPoll(config, buildToday(db, user, today, today, arc));
+  return buildToday(db, user, today, today, arc);
+}
+
+/** Опрос на сегодня; null, если участника нет или у него сегодня пауза. */
+export function pollFor(db: Db, config: Config, tgId: number): Poll | null {
+  const today = todayOf(db, config, tgId);
+  return today && !today.paused ? buildPoll(config, today) : null;
 }
 
 const POLL_WINDOW_MIN = 120;

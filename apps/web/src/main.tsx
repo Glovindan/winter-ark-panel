@@ -1,6 +1,7 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { UserProfile } from '@ark/shared';
+import { Achievements } from './Achievements';
 import { login } from './api';
 import { Dashboard } from './Dashboard';
 import { UserDetail } from './UserDetail';
@@ -8,7 +9,7 @@ import { Profile } from './Profile';
 import { Today } from './Today';
 import './styles.css';
 
-type Tab = 'today' | 'users' | 'profile';
+type Tab = 'today' | 'users' | 'awards' | 'profile';
 
 function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -33,11 +34,13 @@ function App() {
         {tab === 'users' && (viewUser === null
           ? <Dashboard meId={user.id} onOpen={setViewUser} />
           : <UserDetail userId={viewUser} onBack={() => setViewUser(null)} />)}
+        {tab === 'awards' && <Achievements />}
         {tab === 'profile' && <Profile user={user} onSaved={setUser} />}
       </main>
       <nav className="tabs">
         <button className={tab === 'today' ? 'a' : ''} onClick={() => setTab('today')}>Сегодня</button>
         <button className={tab === 'users' ? 'a' : ''} onClick={() => { setTab('users'); setViewUser(null); }}>Участники</button>
+        <button className={tab === 'awards' ? 'a' : ''} onClick={() => setTab('awards')}>Награды</button>
         <button className={tab === 'profile' ? 'a' : ''} onClick={() => setTab('profile')}>Профиль</button>
       </nav>
     </div>

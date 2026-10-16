@@ -1,9 +1,13 @@
 import { randomBytes } from 'node:crypto';
 import { Bot, InlineKeyboard, type BotConfig, type Context } from 'grammy';
-import { isEditable } from '@ark/shared';
+import { isEditable, MAX_PAUSE_REQUEST_DAYS, MAX_PAUSE_TOTAL_DAYS } from '@ark/shared';
+import { refreshAndNotify } from './achievements';
 import type { Config } from './config';
 import type { Db } from './db';
-import { pollFor, buildPoll } from './poll';
+import { buildDigestText, clearDigestChat, lastCompletedWeek, setDigestChat } from './digest';
+import { loadPausedDates } from './history';
+import { addPause, cancelPause } from './pause';
+import { buildPoll, todayOf } from './poll';
 import { updateProfile } from './profile';
 import { buildToday, currentDate, getArc, isDone, setCheckin, visibleHabit } from './today';
 import { getUserByTgId, upsertUser } from './users';
@@ -20,9 +24,14 @@ export function rotateInviteCode(db: Db): string {
   return code;
 }
 
+const ruDate = (d: string) =>
+  new Date(`${d}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+
 const COMMANDS = [
   { command: 'today', description: 'Опрос за сегодня' },
   { command: 'time', description: 'Время вечернего опроса, например /time 21:30' },
+  { command: 'pause', description: 'Пауза на несколько дней, например /pause 3' },
+  { command: 'resume', description: 'Снять паузу' },
   { command: 'help', description: 'Что умеет бот' },
 ];
 
@@ -59,13 +68,51 @@ export function createBot(config: Config, db: Db, botConfig?: BotConfig<Context>
   });
 
   bot.command('help', (ctx) =>
-    ctx.reply('/today — опрос за сегодня\n/time 21:30 — время вечернего опроса\n' + (isAdmin(ctx.from?.id ?? 0) ? '/invite — ссылка-приглашение\n/newinvite — выпустить новую ссылку' : '')),
+    ctx.reply(
+      [
+        '/today — опрос за сегодня',
+        '/time 21:30 — время вечернего опроса',
+        `/pause 3 — пауза на несколько дней (болею, в отъезде), до ${MAX_PAUSE_REQUEST_DAYS}`,
+        '/resume — снять паузу',
+        ...(isAdmin(ctx.from?.id ?? 0)
+          ? ['/invite — ссылка-приглашение', '/newinvite — выпустить новую ссылку', '/digest_here — в группе: присылать сюда недельный дайджест', '/digest_off — выключить дайджест', '/digest — показать дайджест за прошлую неделю']
+          : []),
+      ].join('\n'),
+    ),
   );
 
   bot.command('today', async (ctx) => {
-    const poll = ctx.from && pollFor(db, config, ctx.from.id);
-    if (!poll) return ctx.reply('Сначала нужна ссылка-приглашение от организатора.');
+    const today = ctx.from && todayOf(db, config, ctx.from.id);
+    if (!today) return ctx.reply('Сначала нужна ссылка-приглашение от организатора.');
+    if (today.paused) return ctx.reply(`⏸ Сегодня пауза${today.pauseEndsOn ? ` (до ${ruDate(today.pauseEndsOn)})` : ''}. Отметки не нужны. Снять паузу: /resume`);
+    const poll = buildPoll(config, today);
     return ctx.reply(poll.text, { reply_markup: poll.markup });
+  });
+
+  bot.command('pause', async (ctx) => {
+    const user = ctx.from && getUserByTgId(db, ctx.from.id, config.adminTgId);
+    if (!user) return ctx.reply('Сначала нужна ссылка-приглашение от организатора.');
+    const arg = ctx.match.trim();
+    const days = arg === '' ? 1 : Number(arg);
+    const arc = getArc(db);
+    const today = currentDate(config, arc);
+    const r = addPause(db, arc, user.id, today, today, days);
+    if (r.ok) {
+      refreshAndNotify(db, config, user, notify);
+      return ctx.reply(`⏸ Пауза с ${ruDate(r.from)} по ${ruDate(r.to)}. Отметки в эти дни не нужны, серия сохраняется. Осталось дней паузы: ${r.daysLeft}. Снять: /resume`);
+    }
+    if (r.error === 'invalid_days') return ctx.reply(`Укажи число дней от 1 до ${MAX_PAUSE_REQUEST_DAYS}, например: /pause 3`);
+    if (r.error === 'pause_limit') return ctx.reply(`Лимит паузы исчерпан: осталось ${r.daysLeft} дн. из ${MAX_PAUSE_TOTAL_DAYS}. Попробуй меньше дней.`);
+    return ctx.reply('Паузу можно начать только сегодня или вчера, и только внутри арки.');
+  });
+
+  bot.command('resume', async (ctx) => {
+    const user = ctx.from && getUserByTgId(db, ctx.from.id, config.adminTgId);
+    if (!user) return ctx.reply('Сначала нужна ссылка-приглашение от организатора.');
+    const arc = getArc(db);
+    const today = currentDate(config, arc);
+    const freed = cancelPause(db, arc, user.id, today, today);
+    return ctx.reply(freed === 'out_of_window' || freed === 0 ? 'Сейчас паузы нет.' : `Пауза снята, вернули ${freed} дн. Хорошего продолжения!`);
   });
 
   bot.command('time', async (ctx) => {
@@ -95,6 +142,33 @@ export function createBot(config: Config, db: Db, botConfig?: BotConfig<Context>
     await sendInvite(ctx, rotateInviteCode(db));
   });
 
+  // Недельный дайджест в групповой чат (только админ)
+  bot.command('digest_here', async (ctx) => {
+    if (!ctx.from || !isAdmin(ctx.from.id)) return;
+    if (ctx.chat.type !== 'group' && ctx.chat.type !== 'supergroup') {
+      return ctx.reply('Эту команду нужно отправить в групповом чате, куда добавлен бот.');
+    }
+    setDigestChat(db, ctx.chat.id);
+    return ctx.reply('Готово: итоги недели будут приходить сюда по понедельникам в 10:00 по Москве.');
+  });
+
+  bot.command('digest_off', async (ctx) => {
+    if (!ctx.from || !isAdmin(ctx.from.id)) return;
+    clearDigestChat(db);
+    return ctx.reply('Недельный дайджест выключен.');
+  });
+
+  bot.command('digest', async (ctx) => {
+    if (!ctx.from || !isAdmin(ctx.from.id)) return;
+    const arc = getArc(db);
+    const today = currentDate(config, arc);
+    const week = lastCompletedWeek(arc, today);
+    const text = week && buildDigestText(db, arc, today, week);
+    return ctx.reply(text || 'Пока нет завершённой недели с данными.');
+  });
+
+  const notify = (tgId: number, text: string) => bot.api.sendMessage(tgId, text).then(() => undefined);
+
   // Кнопки опроса: t:<habitId>:<date>
   bot.callbackQuery(/^t:(\d+):(\d{4}-\d{2}-\d{2})$/, async (ctx) => {
     const user = getUserByTgId(db, ctx.from.id, config.adminTgId);
@@ -112,7 +186,12 @@ export function createBot(config: Config, db: Db, botConfig?: BotConfig<Context>
       return ctx.answerCallbackQuery({ text: 'Такого пункта больше нет.' });
     }
 
+    if (loadPausedDates(db, arc, user.id).get(user.id)?.has(date)) {
+      return ctx.answerCallbackQuery({ text: 'День на паузе. Снять паузу: /resume' });
+    }
+
     setCheckin(db, user.id, habitId, date, !isDone(db, user.id, habitId, date));
+    refreshAndNotify(db, config, user, notify);
     const poll = buildPoll(config, buildToday(db, user, date, today, arc));
     await ctx.editMessageText(poll.text, { reply_markup: poll.markup }).catch(() => undefined);
     return ctx.answerCallbackQuery();

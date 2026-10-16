@@ -1,10 +1,11 @@
 import {
   addDays,
   arcTotalDays,
+  computeStreak,
   diffDays,
   isEditable,
   todayInTz,
-  weekStart,
+  workoutWeeks,
   type ArcRange,
   type DateStr,
   type TodayResponse,
@@ -12,6 +13,8 @@ import {
 } from '@ark/shared';
 import type { Config } from './config';
 import type { Db } from './db';
+import { loadHistories } from './history';
+import { pauseDaysLeft, pauseEndsOn } from './pause';
 
 export interface Arc extends ArcRange {
   tz: string;
@@ -68,13 +71,10 @@ export function buildToday(db: Db, user: UserProfile, date: DateStr, today: Date
       .all(user.id, date) as { habit_id: number }[]).map((r) => r.habit_id),
   );
 
-  const ws = weekStart(date);
-  const weekDone = (db
-    .prepare(
-      `SELECT count(*) AS c FROM checkin c JOIN habit h ON h.id = c.habit_id
-       WHERE c.user_id = ? AND h.kind = 'workout' AND c.status = 'done' AND c.date BETWEEN ? AND ?`,
-    )
-    .get(user.id, ws, addDays(ws, 6)) as { c: number }).c;
+  const history = loadHistories(db, arc, user.id).get(user.id)!;
+  const week = workoutWeeks(arc, today, history.workout, history.perWeek, history.paused).find(
+    (w) => date >= w.from && date <= w.to,
+  );
 
   const inArc = date >= arc.startDate && date <= arc.endDate;
   return {
@@ -87,7 +87,11 @@ export function buildToday(db: Db, user: UserProfile, date: DateStr, today: Date
     startDate: arc.startDate,
     editable: isEditable(date, today, arc),
     habits: habits.map((h) => ({ ...h, done: doneIds.has(h.id) })),
-    workout: { done: weekDone, target: user.workoutsPerWeek },
+    workout: week ? { done: week.done, target: week.target } : { done: 0, target: user.workoutsPerWeek },
     norms: { kcal: user.kcal, sleepHours: user.sleepHours },
+    streak: computeStreak(arc, today, history),
+    paused: history.paused.has(date),
+    pauseEndsOn: pauseEndsOn(db, arc, user.id, date),
+    pauseDaysLeft: pauseDaysLeft(db, arc, user.id),
   };
 }

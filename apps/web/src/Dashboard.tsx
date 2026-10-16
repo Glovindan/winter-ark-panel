@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { overall, type DashboardResponse, type DashboardUser } from '@ark/shared';
+import { achievementByCode, overall, type DashboardResponse, type DashboardUser } from '@ark/shared';
 import { getDashboard } from './api';
 import { Avatar } from './Avatar';
 import { Ring } from './Ring';
@@ -50,7 +50,16 @@ export function Dashboard({ meId, onOpen }: { meId: number; onOpen: (id: number)
               <p className="ttl">{u.name}{u.id === meId ? ' (вы)' : ''}</p>
               <p className="sub">
                 <span className="ok">{pct(o.done, o.total)}%</span> · <span className="bad">{pct(o.skipped, o.total)}%</span>
+                {u.streak > 0 && <span> · 🔥{u.streak}</span>}
               </p>
+              {u.badges.length > 0 && (
+                <p className="badges">
+                  {u.badges.map((code) => {
+                    const a = achievementByCode(code);
+                    return a ? <span key={code} title={a.title}>{a.icon}</span> : null;
+                  })}
+                </p>
+              )}
             </button>
           );
         })}
