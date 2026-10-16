@@ -1,0 +1,12 @@
+{
+  "name": "winter-ark-panel",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "dev:server": "npm run dev -w @ark/server",
+    "dev:web": "npm run dev -w @ark/web",
+    "test": "npm run test -w @ark/server",
+    "typecheck": "npm run typecheck -ws --if-present"
+  }
+}
