@@ -41,6 +41,8 @@ trap '[ "$ok" = 1 ] || rm -rf "$DIR"' EXIT
 
 log "Распаковка релиза $ID (от имени ark)"
 install -d -o ark -g ark "$DIR"
+# архив создан от root (mktemp даёт 600), а распаковывает его пользователь ark
+chmod a+r "$TGZ"
 runuser -u ark -- tar -xzf "$TGZ" -C "$DIR"
 [ -f "$DIR/apps/server/src/index.ts" ] || fail "в архиве нет серверного кода"
 [ -f "$DIR/apps/web/dist/index.html" ] || fail "в архиве нет собранного фронтенда"
