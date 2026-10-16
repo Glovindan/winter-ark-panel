@@ -29,8 +29,11 @@ function Run($label, [scriptblock]$cmd) {
 
 if ($Setup) {
   if (-not $Domain) { throw 'Для -Setup укажи -Domain, например 1-2-3-4.sslip.io (IP с дефисами)' }
-  Run 'Заливаю setup.sh' { scp @ssh "$PSScriptRoot\server\setup.sh" "${target}:/tmp/ark-setup.sh" }
-  Run 'Настраиваю сервер (несколько минут)' { ssh @ssh $target "bash /tmp/ark-setup.sh $Domain" }
+  Run 'Заливаю скрипты сервера' {
+    scp @ssh "$PSScriptRoot\server\setup.sh" "$PSScriptRoot\server\update.sh" "$PSScriptRoot\server\ark-deploy.sh" "$PSScriptRoot\server\install-ci.sh" "${target}:/tmp/"
+  }
+  Run 'Настраиваю сервер (несколько минут)' { ssh @ssh $target "bash /tmp/setup.sh $Domain" }
+  Run 'Включаю релизную схему и скрипты деплоя' { ssh @ssh $target 'cd /tmp && bash install-ci.sh' }
 }
 
 Run 'Проверка типов' { npm run typecheck }
@@ -46,7 +49,6 @@ Run 'Архив' {
 }
 
 Run 'Заливаю архив' { scp @ssh $tgz "${target}:/tmp/ark-deploy.tgz" }
-Run 'Заливаю update.sh' { scp @ssh "$PSScriptRoot\server\update.sh" "${target}:/tmp/ark-update.sh" }
-Run 'Раскатываю на сервере' { ssh @ssh $target 'bash /tmp/ark-update.sh /tmp/ark-deploy.tgz' }
+Run 'Раскатываю на сервере' { ssh @ssh $target '/usr/local/bin/ark-deploy < /tmp/ark-deploy.tgz; rc=$?; rm -f /tmp/ark-deploy.tgz; exit $rc' }
 Remove-Item $tgz -ErrorAction SilentlyContinue
 Write-Host 'Готово.' -ForegroundColor Green
