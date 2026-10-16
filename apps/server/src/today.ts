@@ -3,17 +3,19 @@ import {
   arcTotalDays,
   computeStreak,
   diffDays,
+  habitProgress,
   isEditable,
   todayInTz,
   workoutWeeks,
   type ArcRange,
   type DateStr,
+  type HabitType,
   type TodayResponse,
   type UserProfile,
 } from '@ark/shared';
 import type { Config } from './config';
 import type { Db } from './db';
-import { loadHistories } from './history';
+import { loadCustomDone, loadHistories } from './history';
 import { pauseDaysLeft, pauseEndsOn } from './pause';
 
 export interface Arc extends ArcRange {
@@ -57,13 +59,16 @@ export function setCheckin(db: Db, userId: number, habitId: number, date: DateSt
   }
 }
 
+interface FullHabitRow extends HabitRow { type: HabitType; target: number | null; created_at: DateStr | null }
+
 export function buildToday(db: Db, user: UserProfile, date: DateStr, today: DateStr, arc: Arc): TodayResponse {
   const habits = db
     .prepare(
-      `SELECT id, kind, title FROM habit WHERE owner_id IS NULL OR owner_id = ?
+      `SELECT id, kind, title, type, target, created_at FROM habit WHERE owner_id IS NULL OR owner_id = ?
        ORDER BY CASE kind WHEN 'nutrition' THEN 1 WHEN 'workout' THEN 2 WHEN 'sleep' THEN 3 ELSE 4 END, id`,
     )
-    .all(user.id) as HabitRow[];
+    .all(user.id) as FullHabitRow[];
+  const customDone = loadCustomDone(db, arc, user.id);
 
   const doneIds = new Set(
     (db
@@ -86,7 +91,21 @@ export function buildToday(db: Db, user: UserProfile, date: DateStr, today: Date
     totalDays: arcTotalDays(arc),
     startDate: arc.startDate,
     editable: isEditable(date, today, arc),
-    habits: habits.map((h) => ({ ...h, done: doneIds.has(h.id) })),
+    habits: habits.map((h) => ({
+      id: h.id,
+      kind: h.kind,
+      title: h.title,
+      done: doneIds.has(h.id),
+      type: h.type,
+      target: h.target,
+      progress:
+        h.kind === 'custom'
+          ? habitProgress(
+              arc, today, { type: h.type, target: h.target, createdAt: h.created_at },
+              customDone.get(h.id) ?? new Set(), history.paused, date,
+            )
+          : null,
+    })),
     workout: week ? { done: week.done, target: week.target } : { done: 0, target: user.workoutsPerWeek },
     norms: { kcal: user.kcal, sleepHours: user.sleepHours },
     streak: computeStreak(arc, today, history),

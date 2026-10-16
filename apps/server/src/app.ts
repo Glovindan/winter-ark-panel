@@ -4,6 +4,7 @@ import jwt from '@fastify/jwt';
 import {
   ACHIEVEMENTS,
   isDateStr,
+  isValidHabitSpec,
   isEditable,
   MAX_CUSTOM_HABITS,
   MAX_HABIT_TITLE,
@@ -179,17 +180,23 @@ export async function buildApp(config: Config, db: Db, deps: AppDeps = {}): Prom
       return detail;
     });
 
-    api.post<{ Body: { title?: string } }>('/habits', async (req, reply) => {
+    api.post<{ Body: { title?: string; type?: string; target?: number } }>('/habits', async (req, reply) => {
       const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
       if (title.length < 1 || title.length > MAX_HABIT_TITLE) return reply.code(400).send({ error: 'invalid_title' });
+      const type = req.body?.type ?? 'daily';
+      const target = req.body?.target ?? null;
+      if (!isValidHabitSpec(type, target)) return reply.code(400).send({ error: 'invalid_habit_type' });
       const { c } = db
         .prepare("SELECT count(*) AS c FROM habit WHERE owner_id = ? AND kind = 'custom'")
         .get(req.profile.id) as { c: number };
       if (c >= MAX_CUSTOM_HABITS) return reply.code(409).send({ error: 'too_many_habits' });
+      const arc = getArc(db);
       const info = db
-        .prepare("INSERT INTO habit (kind, owner_id, title) VALUES ('custom', ?, ?)")
-        .run(req.profile.id, title);
-      return reply.code(201).send({ id: Number(info.lastInsertRowid), kind: 'custom', title, done: false });
+        .prepare("INSERT INTO habit (kind, owner_id, title, type, target, created_at) VALUES ('custom', ?, ?, ?, ?, ?)")
+        .run(req.profile.id, title, type, target, currentDate(config, arc));
+      return reply.code(201).send({
+        id: Number(info.lastInsertRowid), kind: 'custom', title, done: false, type, target, progress: null,
+      });
     });
 
     api.delete<{ Params: { id: string } }>('/habits/:id', async (req, reply) => {

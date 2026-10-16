@@ -97,6 +97,18 @@ input, select { width: 100%; padding: 9px 10px; font: inherit; border-radius: 10
 .ach-icon { font-size: 26px; line-height: 1.2; }
 .ach:not(.got) .ach-icon { filter: grayscale(1); }
 
+.dots span.extra { background: var(--link); }
+.bar { height: 5px; border-radius: 3px; background: var(--line); margin-top: 4px; overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--ok); }
+.add select { flex: 1 1 100%; }
+
+.week-strip { display: flex; gap: 4px; flex: none; }
+.wk { min-width: 30px; padding: 2px 4px; border-radius: 6px; font-size: 11px; text-align: center; border: 1px solid transparent; background: var(--bg2); color: var(--hint); }
+.wk.met { background: var(--ok); color: #fff; }
+.wk.miss { background: var(--err); color: #fff; opacity: 0.6; }
+.wk.open { border: 1px dashed var(--hint); }
+.wk.skip { opacity: 0.4; }
+
 .fld.habit { align-items: center; }
 .strip { display: flex; gap: 3px; flex: none; }
 .cell { display: block; width: 10px; height: 20px; border-radius: 3px; border: 1px solid transparent; }

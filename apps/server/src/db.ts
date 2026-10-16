@@ -79,6 +79,11 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (user_id, code)
   );
   `,
+  `
+  ALTER TABLE habit ADD COLUMN type TEXT NOT NULL DEFAULT 'daily' CHECK (type IN ('daily', 'weekly', 'arc_total'));
+  ALTER TABLE habit ADD COLUMN target INTEGER;
+  ALTER TABLE habit ADD COLUMN created_at TEXT;
+  `,
 ];
 
 export function openDb(path: string): Db {
