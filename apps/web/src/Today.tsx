@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { MAX_CUSTOM_HABITS, MAX_HABIT_TITLE, type TodayHabit, type TodayResponse } from '@ark/shared';
+import {
+  HABIT_TYPES,
+  MAX_CUSTOM_HABITS,
+  MAX_HABIT_TITLE,
+  MAX_WEEKLY_TARGET,
+  type HabitType,
+  type TodayHabit,
+  type TodayResponse,
+} from '@ark/shared';
 import { addHabit, addPause, cancelPause, deleteHabit, getToday, setCheckin } from './api';
 
 const fmtDate = (d: string) =>
@@ -20,6 +28,9 @@ export function Today({ onNeedProfile }: { onNeedProfile?: () => void }) {
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
   const [pauseOpen, setPauseOpen] = useState(false);
+  const [habitType, setHabitType] = useState<HabitType>('daily');
+  const [weeklyTarget, setWeeklyTarget] = useState('2');
+  const [arcTarget, setArcTarget] = useState('10');
 
   const load = useCallback((d?: string) => {
     getToday(d).then(
@@ -67,9 +78,11 @@ export function Today({ onNeedProfile }: { onNeedProfile?: () => void }) {
   const submitHabit = async () => {
     const t = title.trim();
     if (!t) return;
+    const target = habitType === 'weekly' ? Number(weeklyTarget) : habitType === 'arc_total' ? Number(arcTarget) : undefined;
     try {
-      await addHabit(t);
+      await addHabit({ title: t, type: habitType, target });
       setTitle('');
+      setHabitType('daily');
       setAdding(false);
       load(date);
     } catch (e) {
@@ -107,6 +120,26 @@ export function Today({ onNeedProfile }: { onNeedProfile?: () => void }) {
                 <span key={i} className={i < data.workout.done ? 'f' : ''} />
               ))}
             </div>
+          </>
+        )}
+        {h.progress?.kind === 'week' && (
+          <>
+            <p className="sub">
+              Неделя: {h.progress.done} из {h.progress.target}
+              {h.progress.done >= h.progress.target && h.progress.target > 0 ? ' ✓' : ''}
+              {h.progress.done > h.progress.target ? ' сверх нормы' : ''}
+            </p>
+            <div className="dots">
+              {Array.from({ length: Math.max(h.progress.target, h.progress.done) }, (_, i) => (
+                <span key={i} className={i < h.progress!.done ? (i >= h.progress!.target ? 'f extra' : 'f') : ''} />
+              ))}
+            </div>
+          </>
+        )}
+        {h.progress?.kind === 'arc' && (
+          <>
+            <p className="sub">{h.progress.done} из {h.progress.target} за арку{h.progress.done >= h.progress.target ? ' ✓' : ''}</p>
+            <div className="bar"><span style={{ width: `${Math.min(100, (h.progress.done / h.progress.target) * 100)}%` }} /></div>
           </>
         )}
       </div>
@@ -172,6 +205,26 @@ export function Today({ onNeedProfile }: { onNeedProfile?: () => void }) {
               onChange={(e) => setTitle(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submitHabit()}
             />
+            <select value={habitType} onChange={(e) => setHabitType(e.target.value as HabitType)} aria-label="Тип пункта">
+              {HABIT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            {habitType === 'weekly' && (
+              <select value={weeklyTarget} onChange={(e) => setWeeklyTarget(e.target.value)} aria-label="Раз в неделю">
+                {Array.from({ length: MAX_WEEKLY_TARGET }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>{n} раз в неделю</option>
+                ))}
+              </select>
+            )}
+            {habitType === 'arc_total' && (
+              <input
+                value={arcTarget}
+                inputMode="numeric"
+                aria-label="Сколько раз за арку"
+                placeholder="Сколько раз за арку"
+                onChange={(e) => setArcTarget(e.target.value.replace(/\D/g, '').slice(0, 3))}
+              />
+            )}
+            {habitType !== 'daily' && <p className="note">Тип и цель потом не меняются: нужно другое, удали пункт и создай заново.</p>}
             <button onClick={submitHabit}>Добавить</button>
             <button className="ghost" onClick={() => { setAdding(false); setTitle(''); }}>Отмена</button>
           </div>

@@ -29,6 +29,23 @@ export function loadPausedDates(db: Db, arc: ArcRange, userId?: number): Map<num
   return byUser;
 }
 
+/** Даты отметок личных пунктов участника по id пункта. */
+export function loadCustomDone(db: Db, arc: ArcRange, userId: number): Map<number, Set<DateStr>> {
+  const rows = db
+    .prepare(
+      `SELECT c.habit_id, c.date FROM checkin c JOIN habit h ON h.id = c.habit_id
+       WHERE c.user_id = ? AND c.status = 'done' AND h.owner_id = ? AND c.date BETWEEN ? AND ?`,
+    )
+    .all(userId, userId, arc.startDate, arc.endDate) as { habit_id: number; date: DateStr }[];
+  const byHabit = new Map<number, Set<DateStr>>();
+  for (const r of rows) {
+    let set = byHabit.get(r.habit_id);
+    if (!set) byHabit.set(r.habit_id, (set = new Set()));
+    set.add(r.date);
+  }
+  return byHabit;
+}
+
 /** Истории участников: отметки обязательных пунктов и паузы. Без userId возвращает всех. */
 export function loadHistories(db: Db, arc: ArcRange, userId?: number): Map<number, History> {
   const users = db

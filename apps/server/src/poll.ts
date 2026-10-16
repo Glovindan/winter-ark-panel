@@ -18,7 +18,8 @@ export function buildPoll(config: Config, today: TodayResponse): Poll {
   const markup = new InlineKeyboard();
   today.habits.forEach((h, i) => {
     if (i > 0) markup.row();
-    markup.text(`${h.done ? '✅' : '⬜'} ${h.title}`, `t:${h.id}:${today.date}`);
+    const progress = h.progress ? ` (${h.progress.done}/${h.progress.target})` : '';
+    markup.text(`${h.done ? '✅' : '⬜'} ${h.title}${progress}`, `t:${h.id}:${today.date}`);
   });
   if (config.webAppUrl) markup.row().webApp('Открыть панель', config.webAppUrl);
 

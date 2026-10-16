@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react';
-import { achievementByCode, habitStat, overall, RING_KINDS, weekStart, type RingKind, type UserDetailResponse } from '@ark/shared';
+import {
+  achievementByCode,
+  arcStat,
+  habitStat,
+  overall,
+  RING_KINDS,
+  weekStart,
+  weeklyStat,
+  type DetailHabit,
+  type RingKind,
+  type UserDetailResponse,
+} from '@ark/shared';
 import { getUserDays } from './api';
 import { Avatar } from './Avatar';
 import { Ring } from './Ring';
@@ -10,6 +21,63 @@ const pct = (n: number, total: number) => (total ? Math.round((n / total) * 100)
 const dayLabel = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short' });
 const shortDate = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+
+/** Итоги по личному пункту с учётом его типа: каждый день, N раз в неделю или цель на арку. */
+function PersonalHabit({ habit, data, paused }: { habit: DetailHabit; data: UserDetailResponse; paused: ReadonlySet<string> }) {
+  const arc = { startDate: data.startDate, endDate: data.endDate };
+  const doneDates = new Set(data.days.filter((d) => d.done.includes(habit.id)).map((d) => d.date));
+  const spec = { type: habit.type, target: habit.target, createdAt: habit.createdAt };
+
+  if (habit.type === 'weekly' && habit.target) {
+    const s = weeklyStat(arc, data.today, spec, doneDates, paused);
+    return (
+      <div className="fld habit">
+        <div className="grow">
+          <p className="ttl">{habit.title}</p>
+          <p className="sub">
+            {habit.target} раз в неделю · выполнено {s.done}{s.streak > 0 ? ` · ${s.streak} нед. подряд` : ''}
+          </p>
+        </div>
+        <span className="week-strip" role="img" aria-label="Последние 4 недели">
+          {s.last4.map((w) => (
+            <span key={w.weekStart} className={`wk ${w.state}`} title={`Неделя с ${w.from}`}>
+              {w.state === 'skip' ? '·' : `${w.done}/${w.target}`}
+            </span>
+          ))}
+        </span>
+      </div>
+    );
+  }
+
+  if (habit.type === 'arc_total' && habit.target) {
+    const s = arcStat(arc, data.today, habit.target, doneDates);
+    return (
+      <div className="fld habit">
+        <div className="grow">
+          <p className="ttl">{habit.title}</p>
+          <p className="sub">
+            Цель на арку: {s.done} из {s.target}
+            {s.done >= s.target ? ' ✓' : s.onTrack ? ' · в графике' : ' · отстаёт от графика'}
+          </p>
+          <div className="bar"><span style={{ width: `${Math.min(100, s.ratio * 100)}%` }} /></div>
+        </div>
+      </div>
+    );
+  }
+
+  const s = habitStat(data.days, habit.id, paused, data.today);
+  return (
+    <div className="fld habit">
+      <div className="grow">
+        <p className="ttl">{habit.title}</p>
+        <p className="sub">Каждый день · выполнено {s.done} дн.{s.streak > 0 ? ` · серия ${s.streak}` : ''}</p>
+      </div>
+      <span className="strip" role="img" aria-label="Последние 7 дней">
+        {s.last7.map((m, i) => <i key={i} className={`cell ${m}`} />)}
+      </span>
+    </div>
+  );
+}
 
 export function UserDetail({ userId, onBack }: { userId: number; onBack: () => void }) {
   const [data, setData] = useState<UserDetailResponse | null>(null);
@@ -82,21 +150,10 @@ export function UserDetail({ userId, onBack }: { userId: number; onBack: () => v
       {custom.length > 0 && (
         <>
           <p className="sec">Личные пункты</p>
-          {custom.map((h) => {
-            const s = habitStat(data.days, h.id, paused, data.today);
-            return (
-              <div key={h.id} className="fld habit">
-                <div className="grow">
-                  <p className="ttl">{h.title}</p>
-                  <p className="sub">Выполнено {s.done} дн.{s.streak > 0 ? ` · серия ${s.streak}` : ''}</p>
-                </div>
-                <span className="strip" role="img" aria-label="Последние 7 дней">
-                  {s.last7.map((m, i) => <i key={i} className={`cell ${m}`} />)}
-                </span>
-              </div>
-            );
-          })}
-          <p className="note">Личные пункты участник выбирает сам, в кольца и общий процент они не входят. Справа последние 7 дней.</p>
+          {custom.map((h) => (
+            <PersonalHabit key={h.id} habit={h} data={data} paused={paused} />
+          ))}
+          <p className="note">Личные пункты участник выбирает сам, в кольца и общий процент они не входят.</p>
         </>
       )}
 

@@ -1,9 +1,11 @@
+import type { HabitProgress, HabitType } from './habits';
 import type { StreakInfo } from './rings';
 
 export * from './dates';
 export * from './rings';
 export * from './progress';
 export * from './nutrition';
+export * from './habits';
 
 export type HabitKind = 'nutrition' | 'workout' | 'sleep' | 'custom';
 export type CheckinStatus = 'done' | 'skipped';
@@ -45,6 +47,10 @@ export interface TodayHabit {
   kind: HabitKind;
   title: string;
   done: boolean;
+  type: HabitType;
+  target: number | null;
+  /** неделя или арка для пунктов с целью; у ежедневных null */
+  progress: HabitProgress | null;
 }
 
 export interface TodayResponse {

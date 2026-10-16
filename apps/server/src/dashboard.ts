@@ -56,12 +56,14 @@ export function buildUserDetail(db: Db, arc: Arc, today: DateStr, userId: number
   if (!u) return null;
   const h = loadHistories(db, arc, userId).get(userId)!;
 
-  const habits = db
-    .prepare(
-      `SELECT id, kind, title FROM habit WHERE owner_id IS NULL OR owner_id = ?
-       ORDER BY CASE kind WHEN 'nutrition' THEN 1 WHEN 'workout' THEN 2 WHEN 'sleep' THEN 3 ELSE 4 END, id`,
-    )
-    .all(userId) as DetailHabit[];
+  const habits = (
+    db
+      .prepare(
+        `SELECT id, kind, title, type, target, created_at FROM habit WHERE owner_id IS NULL OR owner_id = ?
+         ORDER BY CASE kind WHEN 'nutrition' THEN 1 WHEN 'workout' THEN 2 WHEN 'sleep' THEN 3 ELSE 4 END, id`,
+      )
+      .all(userId) as (Omit<DetailHabit, 'createdAt'> & { created_at: DateStr | null })[]
+  ).map(({ created_at, ...h }): DetailHabit => ({ ...h, createdAt: created_at }));
 
   // отметки по дням, включая личные пункты
   const doneByDay = new Map<DateStr, number[]>();
@@ -82,6 +84,8 @@ export function buildUserDetail(db: Db, arc: Arc, today: DateStr, userId: number
   return {
     user: { id: u.id, name: u.name, avatarUrl: u.avatar_url, workoutsPerWeek: u.workouts_per_week },
     today,
+    startDate: arc.startDate,
+    endDate: arc.endDate,
     rings: ringsOf(arc, today, h),
     streak: computeStreak(arc, today, h),
     achievements: unlockedOf(db, userId),

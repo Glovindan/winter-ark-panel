@@ -1,4 +1,5 @@
 import { addDays, diffDays, weekStart, type ArcRange, type DateStr } from './dates';
+import type { HabitType } from './habits';
 
 export type RingKind = 'nutrition' | 'workout' | 'sleep';
 export const RING_KINDS: RingKind[] = ['nutrition', 'workout', 'sleep'];
@@ -135,11 +136,16 @@ export interface DetailHabit {
   id: number;
   kind: 'nutrition' | 'workout' | 'sleep' | 'custom';
   title: string;
+  type: HabitType;
+  target: number | null;
+  createdAt: DateStr | null;
 }
 
 export interface UserDetailResponse {
   user: { id: number; name: string; avatarUrl: string | null; workoutsPerWeek: number };
   today: DateStr;
+  startDate: DateStr;
+  endDate: DateStr;
   rings: Rings;
   streak: StreakInfo;
   achievements: UnlockedAchievement[];

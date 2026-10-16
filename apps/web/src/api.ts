@@ -2,6 +2,7 @@ import type {
   AchievementView,
   AuthResponse,
   DashboardResponse,
+  HabitType,
   ProfileUpdate,
   TodayHabit,
   TodayResponse,
@@ -64,7 +65,8 @@ export const cancelPause = () => request<TodayResponse>('DELETE', '/pause');
 
 export const getAchievements = () => request<AchievementView[]>('GET', '/achievements');
 
-export const addHabit =(title: string) => request<TodayHabit>('POST', '/habits', { title });
+export const addHabit = (habit: { title: string; type: HabitType; target?: number }) =>
+  request<TodayHabit>('POST', '/habits', habit);
 
 export const deleteHabit = (id: number) => request<void>('DELETE', `/habits/${id}`);
 
