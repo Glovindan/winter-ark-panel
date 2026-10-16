@@ -179,6 +179,52 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { code: 'all-in-7', icon: '🎯', title: 'Всё и сразу', description: '7 дней, когда в один день выполнены питание, сон и тренировка', hidden: true },
 ];
 
+export type HabitDayMark = 'done' | 'miss' | 'pause' | 'open' | 'none';
+
+export interface HabitStat {
+  /** сколько дней пункт выполнен */
+  done: number;
+  /** подряд до сегодняшнего дня (дни паузы пропускаются, сегодняшний ещё открыт) */
+  streak: number;
+  /** последние 7 дней от старых к свежим */
+  last7: HabitDayMark[];
+}
+
+/**
+ * Итоги по личному пункту из списка дней (от свежих к старым, как отдаёт сервер).
+ * Дата создания пункта не хранится, поэтому дни раньше первой отметки считаются «ничего»: пункта могло ещё не быть.
+ */
+export function habitStat(
+  days: { date: DateStr; done: number[] }[],
+  habitId: number,
+  paused: ReadonlySet<DateStr>,
+  today: DateStr,
+): HabitStat {
+  const doneDates = days.filter((d) => d.done.includes(habitId)).map((d) => d.date);
+  const firstDone = doneDates.reduce<DateStr | null>((min, d) => (min === null || d < min ? d : min), null);
+  const isDone = (d: DateStr) => doneDates.includes(d);
+
+  let streak = 0;
+  for (const { date } of days) {
+    if (paused.has(date)) continue;
+    if (isDone(date)) streak++;
+    else if (date >= today) continue; // сегодняшний день ещё открыт
+    else break;
+  }
+
+  const last7 = days
+    .slice(0, 7)
+    .map(({ date }): HabitDayMark => {
+      if (isDone(date)) return 'done';
+      if (paused.has(date)) return 'pause';
+      if (date >= today) return 'open';
+      return firstDone !== null && date > firstDone ? 'miss' : 'none';
+    })
+    .reverse();
+
+  return { done: doneDates.length, streak, last7 };
+}
+
 /** Ачивка для показа участнику: unlockedAt = null, если ещё не открыта */
 export interface AchievementView extends AchievementDef {
   unlockedAt: string | null;

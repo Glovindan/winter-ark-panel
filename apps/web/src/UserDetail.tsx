@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { achievementByCode, overall, RING_KINDS, weekStart, type RingKind, type UserDetailResponse } from '@ark/shared';
+import { achievementByCode, habitStat, overall, RING_KINDS, weekStart, type RingKind, type UserDetailResponse } from '@ark/shared';
 import { getUserDays } from './api';
 import { Avatar } from './Avatar';
 import { Ring } from './Ring';
@@ -78,6 +78,27 @@ export function UserDetail({ userId, onBack }: { userId: number; onBack: () => v
         );
       })}
       <p className="note">Выполнено / пропущено / всего слотов. Тренировки считаются по неделям: цель {data.user.workoutsPerWeek} в неделю.</p>
+
+      {custom.length > 0 && (
+        <>
+          <p className="sec">Личные пункты</p>
+          {custom.map((h) => {
+            const s = habitStat(data.days, h.id, paused, data.today);
+            return (
+              <div key={h.id} className="fld habit">
+                <div className="grow">
+                  <p className="ttl">{h.title}</p>
+                  <p className="sub">Выполнено {s.done} дн.{s.streak > 0 ? ` · серия ${s.streak}` : ''}</p>
+                </div>
+                <span className="strip" role="img" aria-label="Последние 7 дней">
+                  {s.last7.map((m, i) => <i key={i} className={`cell ${m}`} />)}
+                </span>
+              </div>
+            );
+          })}
+          <p className="note">Личные пункты участник выбирает сам, в кольца и общий процент они не входят. Справа последние 7 дней.</p>
+        </>
+      )}
 
       <p className="sec">По дням</p>
       {data.days.map((day) => {
