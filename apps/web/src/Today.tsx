@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MAX_CUSTOM_HABITS, MAX_HABIT_TITLE, type TodayHabit, type TodayResponse } from '@ark/shared';
-import { addHabit, deleteHabit, getToday, setCheckin } from './api';
+import { addHabit, addPause, cancelPause, deleteHabit, getToday, setCheckin } from './api';
 
 const fmtDate = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
@@ -19,6 +19,7 @@ export function Today({ onNeedProfile }: { onNeedProfile?: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
+  const [pauseOpen, setPauseOpen] = useState(false);
 
   const load = useCallback((d?: string) => {
     getToday(d).then(
@@ -36,8 +37,22 @@ export function Today({ onNeedProfile }: { onNeedProfile?: () => void }) {
   const fixed = data.habits.filter((h) => h.kind !== 'custom');
   const custom = data.habits.filter((h) => h.kind === 'custom');
 
+  const locked = !data.editable || data.paused;
+  const canPause = data.state === 'active' && isToday;
+  const pauseOptions = [1, 3, 7, 14].filter((n) => n <= data.pauseDaysLeft);
+
+  const changePause = async (action: () => Promise<TodayResponse>) => {
+    try {
+      await action();
+      setPauseOpen(false);
+      load(date);
+    } catch (e) {
+      setError(String((e as Error).message));
+    }
+  };
+
   const toggle = async (h: TodayHabit) => {
-    if (!data.editable) return;
+    if (locked) return;
     const prev = data;
     setData({ ...data, habits: data.habits.map((x) => (x.id === h.id ? { ...x, done: !x.done } : x)) });
     try {
@@ -75,7 +90,7 @@ export function Today({ onNeedProfile }: { onNeedProfile?: () => void }) {
   const row = (h: TodayHabit, removable: boolean) => (
     <div
       key={h.id}
-      className={`row${h.done ? ' on' : ''}${data.editable ? '' : ' locked'}`}
+      className={`row${h.done ? ' on' : ''}${locked ? ' locked' : ''}`}
       onClick={() => toggle(h)}
       role="checkbox"
       aria-checked={h.done}
@@ -127,7 +142,17 @@ export function Today({ onNeedProfile }: { onNeedProfile?: () => void }) {
       {data.state === 'active' && !data.editable && (
         <p className="banner">Эту дату уже нельзя править.</p>
       )}
+      {data.paused && (
+        <p className="banner">
+          ⏸ Пауза{data.pauseEndsOn ? ` до ${fmtDate(data.pauseEndsOn)}` : ''}. Отметки не нужны, серия сохраняется.
+        </p>
+      )}
       {error && <p className="banner err">{error}</p>}
+      {(data.streak.current > 0 || data.streak.best > 0) && (
+        <p className="streak">
+          🔥 Серия: <b>{data.streak.current}</b> дн. · лучшая {data.streak.best} · заморозок: {data.streak.freezesLeft}
+        </p>
+      )}
 
       <p className="sec">Обязательные</p>
       {fixed.map((h) => row(h, false))}
@@ -160,6 +185,29 @@ export function Today({ onNeedProfile }: { onNeedProfile?: () => void }) {
           </button>
         )}
         {custom.length >= MAX_CUSTOM_HABITS && <p className="note">Максимум {MAX_CUSTOM_HABITS} личных пунктов.</p>}
+
+        {canPause && (
+          <div className="pause">
+            {data.paused ? (
+              <button className="wide" onClick={() => changePause(cancelPause)}>Снять паузу</button>
+            ) : pauseOpen ? (
+              <div>
+                <p className="note">На сколько дней, начиная с сегодня? Серия сохранится, дни не станут пропусками.</p>
+                <div className="add">
+                  {pauseOptions.map((n) => (
+                    <button key={n} onClick={() => changePause(() => addPause(n))}>{n} дн.</button>
+                  ))}
+                  <button className="ghost" onClick={() => setPauseOpen(false)}>Отмена</button>
+                </div>
+              </div>
+            ) : (
+              <button className="wide" disabled={pauseOptions.length === 0} onClick={() => setPauseOpen(true)}>
+                ⏸ Пауза (болею, в отъезде)
+              </button>
+            )}
+            <p className="note">Осталось дней паузы за арку: {data.pauseDaysLeft}.</p>
+          </div>
+        )}
         {onNeedProfile && data.norms.kcal === null && (
           <p className="note">
             Укажи норму калорий <a href="#profile" onClick={(e) => { e.preventDefault(); onNeedProfile(); }}>в профиле</a>.

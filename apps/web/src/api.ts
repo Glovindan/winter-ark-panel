@@ -1,4 +1,5 @@
 import type {
+  AchievementView,
   AuthResponse,
   DashboardResponse,
   ProfileUpdate,
@@ -57,7 +58,13 @@ export const getToday =(date?: string) =>
 export const setCheckin = (habitId: number, date: string, done: boolean) =>
   request<TodayResponse>('PUT', '/checkin', { habitId, date, done });
 
-export const addHabit = (title: string) => request<TodayHabit>('POST', '/habits', { title });
+export const addPause = (days: number) => request<TodayResponse>('POST', '/pause', { days });
+
+export const cancelPause = () => request<TodayResponse>('DELETE', '/pause');
+
+export const getAchievements = () => request<AchievementView[]>('GET', '/achievements');
+
+export const addHabit =(title: string) => request<TodayHabit>('POST', '/habits', { title });
 
 export const deleteHabit = (id: number) => request<void>('DELETE', `/habits/${id}`);
 

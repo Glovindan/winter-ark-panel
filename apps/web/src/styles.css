@@ -87,6 +87,16 @@ input, select { width: 100%; padding: 9px 10px; font: inherit; border-radius: 10
 .chip { font-size: 12px; padding: 3px 8px; border-radius: 10px; background: var(--bg2); }
 .chip.alt { border: 1px dashed var(--line); background: transparent; }
 
+.streak { font-size: 13px; padding: 8px 16px; background: var(--bg2); }
+.pause { margin-top: 12px; }
+.badges { font-size: 16px; letter-spacing: 2px; margin-top: 2px; }
+
+.ach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; background: var(--bg2); }
+.ach { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px; border-radius: 14px; background: var(--bg); opacity: 0.55; }
+.ach.got { opacity: 1; }
+.ach-icon { font-size: 26px; line-height: 1.2; }
+.ach:not(.got) .ach-icon { filter: grayscale(1); }
+
 .tabs { position: fixed; bottom: 0; left: 0; right: 0; max-width: 480px; margin: 0 auto; display: flex; background: var(--bg); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
 .tabs button { flex: 1; padding: 14px 0; border: 0; background: transparent; color: var(--hint); font-size: 13px; }
 .tabs button.a { color: var(--link); font-weight: 600; }

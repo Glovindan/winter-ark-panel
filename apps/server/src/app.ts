@@ -2,16 +2,21 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import {
+  ACHIEVEMENTS,
   isDateStr,
   isEditable,
   MAX_CUSTOM_HABITS,
   MAX_HABIT_TITLE,
+  type AchievementView,
   type AuthResponse,
   type UserProfile,
 } from '@ark/shared';
+import { refreshAndNotify, unlockedOf, type Notify } from './achievements';
 import type { Config } from './config';
 import type { Db } from './db';
 import { buildDashboard, buildUserDetail } from './dashboard';
+import { loadPausedDates } from './history';
+import { addPause, cancelPause } from './pause';
 import { updateProfile } from './profile';
 import { validateInitData } from './telegramAuth';
 import { buildToday, currentDate, getArc, setCheckin, visibleHabit } from './today';
@@ -30,7 +35,12 @@ declare module 'fastify' {
   }
 }
 
-export async function buildApp(config: Config, db: Db): Promise<FastifyInstance> {
+export interface AppDeps {
+  /** Отправка личных сообщений участникам (ачивки); без бота уведомлений нет */
+  notify?: Notify;
+}
+
+export async function buildApp(config: Config, db: Db, deps: AppDeps = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: process.env.VITEST ? false : { level: 'info' } });
   await app.register(cors, { origin: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] });
   await app.register(jwt, { secret: config.sessionSecret, sign: { expiresIn: '7d' } });
@@ -112,9 +122,49 @@ export async function buildApp(config: Config, db: Db): Promise<FastifyInstance>
       const today = currentDate(config, arc);
       if (!isEditable(date, today, arc)) return reply.code(403).send({ error: 'date_not_editable' });
       if (!visibleHabit(db, habitId!, req.profile.id)) return reply.code(404).send({ error: 'habit_not_found' });
+      if (loadPausedDates(db, arc, req.profile.id).get(req.profile.id)?.has(date!)) {
+        return reply.code(409).send({ error: 'day_paused' });
+      }
 
       setCheckin(db, req.profile.id, habitId!, date!, done);
+      refreshAndNotify(db, config, req.profile, deps.notify);
       return buildToday(db, req.profile, date!, today, arc);
+    });
+
+    api.post<{ Body: { days?: number; from?: string } }>('/pause', async (req, reply) => {
+      const arc = getArc(db);
+      const today = currentDate(config, arc);
+      const from = req.body?.from ?? today;
+      if (!isDateStr(from)) return reply.code(400).send({ error: 'invalid_date' });
+      const result = addPause(db, arc, req.profile.id, today, from, req.body?.days as number);
+      if (!result.ok) {
+        const status = { invalid_days: 400, out_of_window: 403, pause_limit: 409 }[result.error];
+        return reply.code(status).send({ error: result.error, daysLeft: result.daysLeft });
+      }
+      refreshAndNotify(db, config, req.profile, deps.notify);
+      return buildToday(db, req.profile, today, today, arc);
+    });
+
+    api.delete<{ Querystring: { from?: string } }>('/pause', async (req, reply) => {
+      const arc = getArc(db);
+      const today = currentDate(config, arc);
+      const from = req.query.from ?? today;
+      if (!isDateStr(from)) return reply.code(400).send({ error: 'invalid_date' });
+      if (cancelPause(db, arc, req.profile.id, today, from) === 'out_of_window') {
+        return reply.code(403).send({ error: 'out_of_window' });
+      }
+      return buildToday(db, req.profile, today, today, arc);
+    });
+
+    api.get('/achievements', async (req): Promise<AchievementView[]> => {
+      const unlocked = new Map(unlockedOf(db, req.profile.id).map((a) => [a.code, a.unlockedAt]));
+      return ACHIEVEMENTS.map((a) => {
+        const unlockedAt = unlocked.get(a.code) ?? null;
+        // секретные ачивки не раскрываются, пока не открыты
+        return a.hidden && !unlockedAt
+          ? { code: a.code, icon: '❔', title: '???', description: 'Секретная ачивка', hidden: true, unlockedAt }
+          : { ...a, unlockedAt };
+      });
     });
 
     api.get('/dashboard', async () => {
