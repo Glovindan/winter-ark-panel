@@ -97,6 +97,13 @@ input, select { width: 100%; padding: 9px 10px; font: inherit; border-radius: 10
 .ach-icon { font-size: 26px; line-height: 1.2; }
 .ach:not(.got) .ach-icon { filter: grayscale(1); }
 
+.calc { border-bottom: 1px solid var(--line); }
+.calc summary { padding: 12px 16px; font-size: 14px; color: var(--link); cursor: pointer; }
+.fld.col { flex-direction: column; align-items: stretch; gap: 6px; }
+.fld.col select { width: 100%; text-align: left; }
+.calc-result { padding: 4px 16px 12px; }
+.calc-result .note { padding: 8px 0; }
+
 .tabs { position: fixed; bottom: 0; left: 0; right: 0; max-width: 480px; margin: 0 auto; display: flex; background: var(--bg); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
 .tabs button { flex: 1; padding: 14px 0; border: 0; background: transparent; color: var(--hint); font-size: 13px; }
 .tabs button.a { color: var(--link); font-weight: 600; }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ProfileUpdate, UserProfile } from '@ark/shared';
 import { saveProfile } from './api';
+import { CalorieCalc } from './CalorieCalc';
 
 const initials = (name: string) =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('');
@@ -70,6 +71,13 @@ export function Profile({ user, onSaved }: { user: UserProfile; onSaved: (u: Use
       {field('Белки, г', 'protein', { inputMode: 'numeric' })}
       {field('Жиры, г', 'fat', { inputMode: 'numeric' })}
       {field('Углеводы, г', 'carb', { inputMode: 'numeric' })}
+      <CalorieCalc
+        workoutsPerWeek={Number(f.workoutsPerWeek)}
+        onApply={(plan) => {
+          setF({ ...f, kcal: String(plan.kcal), protein: String(plan.protein), fat: String(plan.fat), carb: String(plan.carb) });
+          setState('idle');
+        }}
+      />
 
       <p className="sec">Сон и тренировки</p>
       {field('Норма сна, ч', 'sleepHours', { inputMode: 'decimal' })}
