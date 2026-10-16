@@ -49,8 +49,8 @@ jobs:
 
   deploy:
     needs: test
-    # Деплой включается переменной репозитория DEPLOY_ENABLED=true (Settings → Secrets and variables → Variables)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    # Деплой идёт только с main. Защита: окружение production (Required reviewers) и ограниченный SSH-ключ.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     concurrency:
