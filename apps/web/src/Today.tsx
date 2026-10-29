@@ -8,7 +8,7 @@ import {
   type TodayHabit,
   type TodayResponse,
 } from '@ark/shared';
-import { addHabit, addPause, cancelPause, deleteHabit, getToday, setCheckin } from './api';
+import { addHabit, addPause, cancelPause, deleteHabit, getToday, renameHabit, setCheckin } from './api';
 
 const fmtDate = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
@@ -31,6 +31,8 @@ export function Today({ onNeedProfile }: { onNeedProfile?: () => void }) {
   const [habitType, setHabitType] = useState<HabitType>('daily');
   const [weeklyTarget, setWeeklyTarget] = useState('2');
   const [arcTarget, setArcTarget] = useState('10');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState('');
 
   const load = useCallback((d?: string) => {
     getToday(d).then(
@@ -90,6 +92,27 @@ export function Today({ onNeedProfile }: { onNeedProfile?: () => void }) {
     }
   };
 
+  const startEdit = (h: TodayHabit) => {
+    setEditingId(h.id);
+    setEditTitle(h.title);
+  };
+
+  const saveEdit = async (h: TodayHabit) => {
+    const t = editTitle.trim();
+    if (!t) return;
+    if (t === h.title) {
+      setEditingId(null);
+      return;
+    }
+    try {
+      await renameHabit(h.id, t);
+      setEditingId(null);
+      load(date);
+    } catch (e) {
+      setError(String((e as Error).message));
+    }
+  };
+
   const remove = async (h: TodayHabit) => {
     if (!window.confirm(`Удалить «${h.title}»? Отметки по нему тоже пропадут.`)) return;
     try {
@@ -110,7 +133,25 @@ export function Today({ onNeedProfile }: { onNeedProfile?: () => void }) {
     >
       <span className="ck" aria-hidden="true">✓</span>
       <div className="grow">
-        <p className="ttl">{h.title}</p>
+        {editingId === h.id ? (
+          <div className="edit" onClick={(e) => e.stopPropagation()}>
+            <input
+              autoFocus
+              value={editTitle}
+              maxLength={MAX_HABIT_TITLE}
+              aria-label="Название пункта"
+              onChange={(e) => setEditTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') saveEdit(h);
+                if (e.key === 'Escape') setEditingId(null);
+              }}
+            />
+            <button onClick={() => saveEdit(h)}>Сохранить</button>
+            <button className="ghost" onClick={() => setEditingId(null)}>Отмена</button>
+          </div>
+        ) : (
+          <p className="ttl">{h.title}</p>
+        )}
         {subtitle(h, data) && <p className="sub">{subtitle(h, data)}</p>}
         {h.kind === 'workout' && (
           <>
@@ -143,12 +184,19 @@ export function Today({ onNeedProfile }: { onNeedProfile?: () => void }) {
           </>
         )}
       </div>
-      {removable && (
-        <button
-          className="icon"
-          aria-label={`Удалить ${h.title}`}
-          onClick={(e) => { e.stopPropagation(); remove(h); }}
-        >×</button>
+      {removable && editingId !== h.id && (
+        <>
+          <button
+            className="icon"
+            aria-label={`Переименовать ${h.title}`}
+            onClick={(e) => { e.stopPropagation(); startEdit(h); }}
+          >✎</button>
+          <button
+            className="icon"
+            aria-label={`Удалить ${h.title}`}
+            onClick={(e) => { e.stopPropagation(); remove(h); }}
+          >×</button>
+        </>
       )}
     </div>
   );
