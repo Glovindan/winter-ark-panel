@@ -68,6 +68,8 @@ export const getAchievements = () => request<AchievementView[]>('GET', '/achieve
 export const addHabit = (habit: { title: string; type: HabitType; target?: number }) =>
   request<TodayHabit>('POST', '/habits', habit);
 
-export const deleteHabit = (id: number) => request<void>('DELETE', `/habits/${id}`);
+export const renameHabit = (id: number, title: string) => request<{ id: number; title: string }>('PUT', `/habits/${id}`, { title });
+
+export const deleteHabit =(id: number) => request<void>('DELETE', `/habits/${id}`);
 
 export const saveProfile = (update: ProfileUpdate) => request<UserProfile>('PUT', '/me', update);

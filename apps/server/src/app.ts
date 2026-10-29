@@ -199,6 +199,17 @@ export async function buildApp(config: Config, db: Db, deps: AppDeps = {}): Prom
       });
     });
 
+    /** Переименование личного пункта. Тип, цель и отметки не меняются; чужие и обязательные пункты недоступны. */
+    api.put<{ Params: { id: string }; Body: { title?: string } }>('/habits/:id', async (req, reply) => {
+      const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
+      if (title.length < 1 || title.length > MAX_HABIT_TITLE) return reply.code(400).send({ error: 'invalid_title' });
+      const info = db
+        .prepare("UPDATE habit SET title = ? WHERE id = ? AND owner_id = ? AND kind = 'custom'")
+        .run(title, Number(req.params.id), req.profile.id);
+      if (info.changes === 0) return reply.code(404).send({ error: 'habit_not_found' });
+      return { id: Number(req.params.id), title };
+    });
+
     api.delete<{ Params: { id: string } }>('/habits/:id', async (req, reply) => {
       const info = db
         .prepare("DELETE FROM habit WHERE id = ? AND owner_id = ? AND kind = 'custom'")
